@@ -24,8 +24,8 @@ jobs:
         run: >
           xcodebuild
           -project QRPost/QRPost.xcodeproj
-          -target QRPost
-          -sdk iphonesimulator
+          -scheme QRPost
+          -destination 'generic/platform=iOS Simulator'
           CODE_SIGNING_ALLOWED=NO
           build
 
