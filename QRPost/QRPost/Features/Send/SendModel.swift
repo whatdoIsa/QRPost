@@ -26,10 +26,6 @@ final class SendModel {
         }
     }
 
-    /// 프레임 총 바이트가 v14-L 용량(458B)에 들어가는 블록 크기.
-    /// 실기기 실측 후 확정한다
-    nonisolated static let blockSize = 400
-    nonisolated static let framesPerSecond = 12
     nonisolated static let maxFileSize = 64 * 1024 * 1024
 
     private(set) var payload: Payload?
@@ -110,7 +106,7 @@ final class SendModel {
         activeSession = SendSession(
             data: data,
             metadata: FileMetadata(name: payload.name, contentType: payload.contentType),
-            blockSize: Self.blockSize,
+            blockSize: TransferTuning.blockSize,
             fileID: UInt32.random(in: .min ... .max),
             seed: UInt64.random(in: .min ... .max)
         )
@@ -118,10 +114,11 @@ final class SendModel {
 
     /// 무손실 기준 최소 소요 시간. 유실만큼 늘어난다는 사실은 UI 문구가 전달한다
     nonisolated static func estimatedSeconds(byteCount: Int) -> Int {
-        let blockCount = (byteCount + blockSize - 1) / blockSize
+        let blockCount = (byteCount + TransferTuning.blockSize - 1) / TransferTuning.blockSize
         let metaFrames = blockCount / (Int(SendSession.metaInterval) - 1) + 1
         let frames = blockCount + metaFrames
-        return max(1, (frames + framesPerSecond - 1) / framesPerSecond)
+        let perSecond = TransferTuning.framesPerSecondTotal
+        return max(1, (frames + perSecond - 1) / perSecond)
     }
 
     /// 빠르게 옵션의 JPEG 품질 — 실기기 실측에서 화질 대비 시간을 보고 확정한다

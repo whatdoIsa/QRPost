@@ -21,6 +21,13 @@ final class CameraController: NSObject, AVCaptureMetadataOutputObjectsDelegate {
             return false
         }
 
+        // 송수신 거리는 20cm 안팎 — 근거리 초점 제한으로 초점 헌팅을 줄인다
+        if device.isAutoFocusRangeRestrictionSupported {
+            try? device.lockForConfiguration()
+            device.autoFocusRangeRestriction = .near
+            device.unlockForConfiguration()
+        }
+
         captureSession.beginConfiguration()
         guard captureSession.canAddInput(input) else {
             captureSession.commitConfiguration()

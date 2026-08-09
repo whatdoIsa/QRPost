@@ -11,7 +11,7 @@ struct QRStreamView: View {
     @State private var startDate = Date.now
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1.0 / Double(SendModel.framesPerSecond))) { context in
+        TimelineView(.periodic(from: .now, by: 1.0 / Double(TransferTuning.framesPerSecond))) { context in
             VStack(spacing: 0) {
                 Text("\(session.metadata.name) 전송 중")
                     .font(.footnote)
@@ -19,8 +19,14 @@ struct QRStreamView: View {
                     .padding(.top, QP.Spacing.lg)
 
                 Spacer()
-                symbolImage(at: currentFrameIndex(context.date))
-                    .padding(.horizontal, QP.Spacing.md)
+                // 여러 코드를 세로로 동시 표시 — 카메라는 한 프레임에서 모두 인식한다
+                let tick = currentTick(context.date)
+                VStack(spacing: QP.Spacing.sm) {
+                    ForEach(0..<TransferTuning.simultaneousCodes, id: \.self) { slot in
+                        symbolImage(at: tick * UInt32(TransferTuning.simultaneousCodes) + UInt32(slot))
+                    }
+                }
+                .padding(.horizontal, QP.Spacing.md)
                 Spacer()
 
                 Text("상대 카메라에 화면을 비춰주세요 · \(elapsedText(context.date))")
@@ -52,9 +58,9 @@ struct QRStreamView: View {
         .accessibilityValue("\(session.metadata.name) 전송 중")
     }
 
-    private func currentFrameIndex(_ date: Date) -> UInt32 {
+    private func currentTick(_ date: Date) -> UInt32 {
         let elapsed = max(0, date.timeIntervalSince(startDate))
-        return UInt32(elapsed * Double(SendModel.framesPerSecond))
+        return UInt32(elapsed * Double(TransferTuning.framesPerSecond))
     }
 
     private func elapsedText(_ date: Date) -> String {
