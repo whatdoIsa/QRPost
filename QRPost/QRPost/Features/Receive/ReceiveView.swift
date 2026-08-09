@@ -5,6 +5,7 @@ import QRPostCore
 struct ReceiveView: View {
     @State private var model = ReceiveModel()
     @State private var camera = CameraController()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -13,6 +14,7 @@ struct ReceiveView: View {
             if model.phase == .completed, let file = model.result {
                 ReceivedFileView(file: file) {
                     model.reset()
+                    camera.start()  // 완료 시 멈췄던 카메라 재가동
                 }
             } else if model.isPermissionDenied {
                 deniedView
@@ -25,6 +27,17 @@ struct ReceiveView: View {
         }
         .onDisappear {
             camera.stop()
+        }
+        .onChange(of: scenePhase) {
+            guard model.phase != .completed, !model.isPermissionDenied else { return }
+            switch scenePhase {
+            case .active:
+                camera.start()
+            case .background:
+                camera.stop()
+            default:
+                break
+            }
         }
     }
 
