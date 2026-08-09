@@ -19,6 +19,9 @@ public enum FrameCodec {
     static let version: UInt8 = 1
     private static let dataType: UInt8 = 0
     private static let metaType: UInt8 = 1
+    /// magic(2) + version(1) + type(1) + fileID(4) + seed(8) + blockCount(4) + blockSize(2) + fileSize(8)
+    private static let commonHeaderSize = 30
+    private static let checksumSize = 4
 
     public static func encode(_ frame: WireFrame) -> [UInt8] {
         var out: [UInt8] = []
@@ -54,10 +57,10 @@ public enum FrameCodec {
     }
 
     public static func decode(_ bytes: [UInt8]) throws -> WireFrame {
-        guard bytes.count >= 34 else { throw WireError.truncated }
+        guard bytes.count >= commonHeaderSize + checksumSize else { throw WireError.truncated }
 
-        let body = Array(bytes.dropLast(4))
-        var tail = ByteReader(Array(bytes.suffix(4)))
+        let body = Array(bytes.dropLast(checksumSize))
+        var tail = ByteReader(Array(bytes.suffix(checksumSize)))
         guard try tail.u32() == CRC32.checksum(body) else { throw WireError.badChecksum }
 
         var reader = ByteReader(body)

@@ -5,7 +5,6 @@ import QRPostCore
 struct ReceiveView: View {
     @State private var model = ReceiveModel()
     @State private var camera = CameraController()
-    @State private var isDenied = false
 
     var body: some View {
         ZStack {
@@ -15,7 +14,7 @@ struct ReceiveView: View {
                 ReceivedFileView(file: file) {
                     model.reset()
                 }
-            } else if isDenied {
+            } else if model.isPermissionDenied {
                 deniedView
             } else {
                 scannerView
@@ -80,38 +79,46 @@ struct ReceiveView: View {
     }
 
     private var statusPanel: some View {
-        VStack(spacing: QP.Spacing.sm) {
-            if model.phase == .receiving {
-                HStack {
-                    Text(model.fileName ?? "수신 중")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(QP.ColorToken.textPrimary)
-                        .lineLimit(1)
-                    Spacer()
-                    Text(progressPercentText)
-                        .font(.subheadline.weight(.medium))
-                        .qpMetric()
-                        .foregroundStyle(QP.ColorToken.accent)
-                }
-                ProgressView(value: Double(model.decodedBlocks), total: Double(max(1, model.totalBlocks)))
-                    .tint(QP.ColorToken.accent)
-                HStack {
-                    Text("\(model.decodedBlocks)/\(model.totalBlocks) 블록 · \(model.bytesPerSecond / 1024)KB/s")
-                        .font(.footnote)
-                        .qpMetric()
-                        .foregroundStyle(QP.ColorToken.textSecondary)
-                    Spacer()
-                    Button("취소", role: .destructive) {
-                        model.reset()
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            VStack(spacing: QP.Spacing.sm) {
+                if model.phase == .receiving {
+                    HStack {
+                        Text(model.fileName ?? "수신 중")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(QP.ColorToken.textPrimary)
+                            .lineLimit(1)
+                        Spacer()
+                        Text(progressPercentText)
+                            .font(.subheadline.weight(.medium))
+                            .qpMetric()
+                            .foregroundStyle(QP.ColorToken.accent)
                     }
-                    .font(.footnote.weight(.medium))
+                    ProgressView(value: Double(model.decodedBlocks), total: Double(max(1, model.totalBlocks)))
+                        .tint(QP.ColorToken.accent)
+                    HStack {
+                        Text("\(model.decodedBlocks)/\(model.totalBlocks) 블록 · \(model.bytesPerSecond / 1024)KB/s")
+                            .font(.footnote)
+                            .qpMetric()
+                            .foregroundStyle(QP.ColorToken.textSecondary)
+                        Spacer()
+                        Button("취소", role: .destructive) {
+                            model.reset()
+                        }
+                        .font(.footnote.weight(.medium))
+                    }
+                    if model.isStalled(at: context.date) {
+                        Text("인식이 끊겼어요. 두 기기를 20cm 정도로 가까이 해주세요.")
+                            .font(.footnote)
+                            .foregroundStyle(QP.ColorToken.textPrimary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                } else {
+                    Text("상대 화면의 QR에 카메라를 비추면\n자동으로 수신이 시작돼요")
+                        .font(.footnote)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(QP.ColorToken.textSecondary)
+                        .frame(maxWidth: .infinity)
                 }
-            } else {
-                Text("상대 화면의 QR에 카메라를 비추면\n자동으로 수신이 시작돼요")
-                    .font(.footnote)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(QP.ColorToken.textSecondary)
-                    .frame(maxWidth: .infinity)
             }
         }
         .padding(QP.Spacing.md)
@@ -161,21 +168,19 @@ struct ReceiveView: View {
             if await AVCaptureDevice.requestAccess(for: .video) {
                 startCamera()
             } else {
-                isDenied = true
+                model.cameraDenied()
             }
         default:
-            isDenied = true
+            model.cameraDenied()
         }
     }
 
     private func startCamera() {
-        isDenied = false
         model.cameraAuthorized()
         if !camera.isConfigured {
             let configured = camera.configure { payloads in
-                let wasReceiving = model.phase == .receiving
                 model.ingest(payloads)
-                if model.phase == .completed, wasReceiving || !wasReceiving {
+                if model.phase == .completed {
                     Haptics.success()
                     camera.stop()
                 }

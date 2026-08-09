@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import QRPostCore
 import UniformTypeIdentifiers
 
@@ -39,6 +40,37 @@ final class SendModel {
     var activeSession: SendSession?
 
     var hasQualityChoice: Bool { compressedData != nil }
+
+    func load(photoItem: PhotosPickerItem) async {
+        guard let data = try? await photoItem.loadTransferable(type: Data.self) else {
+            errorMessage = "사진을 불러오지 못했어요. 다시 선택해주세요."
+            return
+        }
+        let type = photoItem.supportedContentTypes.first
+        setPayload(
+            data: data,
+            name: "사진.\(type?.preferredFilenameExtension ?? "jpg")",
+            contentType: type?.preferredMIMEType ?? "application/octet-stream"
+        )
+    }
+
+    func load(fileResult: Result<URL, Error>) {
+        guard case .success(let url) = fileResult else { return }
+        guard url.startAccessingSecurityScopedResource() else {
+            errorMessage = "파일에 접근하지 못했어요. 다시 선택해주세요."
+            return
+        }
+        defer { url.stopAccessingSecurityScopedResource() }
+        guard let data = try? Data(contentsOf: url) else {
+            errorMessage = "파일을 읽지 못했어요. 다시 선택해주세요."
+            return
+        }
+        setPayload(
+            data: data,
+            name: url.lastPathComponent,
+            contentType: UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+        )
+    }
 
     func setPayload(data: Data, name: String, contentType: String) {
         guard data.count <= Self.maxFileSize else {
@@ -92,11 +124,16 @@ final class SendModel {
         return max(1, (frames + framesPerSecond - 1) / framesPerSecond)
     }
 
+    /// 빠르게 옵션의 JPEG 품질 — 실기기 실측에서 화질 대비 시간을 보고 확정한다
+    private static let fastJPEGQuality: CGFloat = 0.35
+    /// 압축 결과가 원본의 이 비율보다 작아야 옵션을 노출한다 (이득 없는 선택지 방지)
+    private static let worthwhileRatio = 0.75
+
     private static func compress(_ payload: Payload) -> Data? {
         guard payload.isImage,
               let image = UIImage(data: payload.data),
-              let jpeg = image.jpegData(compressionQuality: 0.35),
-              jpeg.count < payload.data.count * 3 / 4 else {
+              let jpeg = image.jpegData(compressionQuality: fastJPEGQuality),
+              Double(jpeg.count) < Double(payload.data.count) * worthwhileRatio else {
             return nil
         }
         return jpeg

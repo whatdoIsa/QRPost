@@ -16,6 +16,8 @@ final class ReceiveModel {
     }
 
     private(set) var phase: Phase = .needsPermission
+    /// 권한이 명시적으로 거부된 상태 (needsPermission과 구분: 요청 전 대기일 수도 있다)
+    private(set) var isPermissionDenied = false
     private var session = ReceiveSession()
     private var startedAt: Date?
 
@@ -38,13 +40,21 @@ final class ReceiveModel {
     }
 
     func cameraAuthorized() {
+        isPermissionDenied = false
         if phase == .needsPermission {
             phase = .scanning
         }
     }
 
     func cameraDenied() {
+        isPermissionDenied = true
         phase = .needsPermission
+    }
+
+    /// 수신 중인데 일정 시간 프레임이 끊겼는지 — 거리 안내 노출 조건
+    func isStalled(at now: Date) -> Bool {
+        guard phase == .receiving, let lastProgressAt else { return false }
+        return now.timeIntervalSince(lastProgressAt) > 2
     }
 
     /// 스캐너가 뽑은 페이로드 후보들을 세션에 공급한다.
