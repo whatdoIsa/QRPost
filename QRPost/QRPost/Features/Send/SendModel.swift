@@ -26,10 +26,10 @@ final class SendModel {
     }
 
     /// 프레임 총 바이트가 v14-L 용량(458B)에 들어가는 블록 크기.
-    /// 실기기 실측(#8 예정) 후 확정한다
-    static let blockSize = 400
-    static let framesPerSecond = 12
-    static let maxFileSize = 64 * 1024 * 1024
+    /// 실기기 실측 후 확정한다
+    nonisolated static let blockSize = 400
+    nonisolated static let framesPerSecond = 12
+    nonisolated static let maxFileSize = 64 * 1024 * 1024
 
     private(set) var payload: Payload?
     /// 빠르게 옵션용 재압축 결과. 원본보다 작을 때만 존재
@@ -85,7 +85,7 @@ final class SendModel {
     }
 
     /// 무손실 기준 최소 소요 시간. 유실만큼 늘어난다는 사실은 UI 문구가 전달한다
-    static func estimatedSeconds(byteCount: Int) -> Int {
+    nonisolated static func estimatedSeconds(byteCount: Int) -> Int {
         let blockCount = (byteCount + blockSize - 1) / blockSize
         let metaFrames = blockCount / (Int(SendSession.metaInterval) - 1) + 1
         let frames = blockCount + metaFrames
@@ -104,11 +104,11 @@ final class SendModel {
 }
 
 extension SendModel {
-    static func formatDuration(_ seconds: Int) -> String {
+    nonisolated static func formatDuration(_ seconds: Int) -> String {
         seconds < 60 ? "약 \(seconds)초" : "약 \(seconds / 60)분 \(seconds % 60)초"
     }
 
-    static func formatBytes(_ count: Int) -> String {
+    nonisolated static func formatBytes(_ count: Int) -> String {
         ByteCountFormatter.string(fromByteCount: Int64(count), countStyle: .file)
     }
 }
