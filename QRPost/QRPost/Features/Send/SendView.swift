@@ -50,10 +50,13 @@ struct SendView: View {
             }
         }
         .onChange(of: photoItem) {
-            loadPhoto()
+            guard let photoItem else { return }
+            Task {
+                await model.load(photoItem: photoItem)
+            }
         }
         .fileImporter(isPresented: $isImportingFile, allowedContentTypes: [.item]) { result in
-            loadFile(result)
+            model.load(fileResult: result)
         }
     }
 
@@ -179,43 +182,6 @@ struct SendView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - 불러오기
-
-    private func loadPhoto() {
-        guard let item = photoItem else { return }
-        Task {
-            guard let data = try? await item.loadTransferable(type: Data.self) else {
-                model.errorMessage = "사진을 불러오지 못했어요. 다시 선택해주세요."
-                return
-            }
-            let type = item.supportedContentTypes.first
-            let ext = type?.preferredFilenameExtension ?? "jpg"
-            model.setPayload(
-                data: data,
-                name: "사진.\(ext)",
-                contentType: type?.preferredMIMEType ?? "application/octet-stream"
-            )
-        }
-    }
-
-    private func loadFile(_ result: Result<URL, Error>) {
-        guard case .success(let url) = result else { return }
-        guard url.startAccessingSecurityScopedResource() else {
-            model.errorMessage = "파일에 접근하지 못했어요. 다시 선택해주세요."
-            return
-        }
-        defer { url.stopAccessingSecurityScopedResource() }
-        guard let data = try? Data(contentsOf: url) else {
-            model.errorMessage = "파일을 읽지 못했어요. 다시 선택해주세요."
-            return
-        }
-        let type = UTType(filenameExtension: url.pathExtension)
-        model.setPayload(
-            data: data,
-            name: url.lastPathComponent,
-            contentType: type?.preferredMIMEType ?? "application/octet-stream"
-        )
-    }
 }
 
 #Preview {

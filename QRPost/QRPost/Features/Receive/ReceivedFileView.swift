@@ -1,5 +1,6 @@
 import SwiftUI
 import Photos
+import UniformTypeIdentifiers
 
 /// 수신 완료 — 이 앱의 피크 순간. 앰버 소인이 찍히고 요약 카드로 닫는다
 /// (디자인 가이드 5-5)
@@ -166,5 +167,3 @@ private struct ReceivedDocument: FileDocument {
         FileWrapper(regularFileWithContents: data)
     }
 }
-
-import UniformTypeIdentifiers
