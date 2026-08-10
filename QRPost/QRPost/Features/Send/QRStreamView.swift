@@ -7,7 +7,7 @@ struct QRStreamView: View {
     let session: SendSession
 
     @Environment(\.dismiss) private var dismiss
-    @State private var frameIndex: UInt32 = 0
+    @Environment(\.scenePhase) private var scenePhase
     @State private var startDate = Date.now
 
     var body: some View {
@@ -53,6 +53,16 @@ struct QRStreamView: View {
         }
         .onDisappear {
             ScreenGuard.release()
+        }
+        .onChange(of: scenePhase) {
+            // 전화·앱 전환 중에는 밝기를 돌려주고, 복귀하면 다시 고정한다.
+            // 프레임 인덱스는 벽시계 기준이라 중단 없이 이어진다 (수신은 순서 무관)
+            switch scenePhase {
+            case .active:
+                ScreenGuard.engage()
+            default:
+                ScreenGuard.release()
+            }
         }
         .accessibilityLabel("QR 코드 재생 중")
         .accessibilityValue("\(session.metadata.name) 전송 중")

@@ -23,6 +23,13 @@ struct SendView: View {
                 }
                 Spacer()
                 if model.payload != nil {
+                    if let seconds = model.estimatedSeconds(for: model.quality), seconds > 120 {
+                        Text("전송에 \(SendModel.formatDuration(seconds)) 걸려요. 두 기기를 세워 두고 진행하는 것을 추천해요.")
+                            .font(.footnote)
+                            .foregroundStyle(QP.ColorToken.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, QP.Spacing.lg)
+                    }
                     Button("재생 시작") {
                         model.startStreaming()
                         isStreaming = true
@@ -35,7 +42,9 @@ struct SendView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(QP.ColorToken.background)
             .navigationTitle("큐알포스트")
-            .fullScreenCover(isPresented: $isStreaming) {
+            .fullScreenCover(isPresented: $isStreaming, onDismiss: {
+                model.activeSession = nil
+            }) {
                 if let session = model.activeSession {
                     QRStreamView(session: session)
                 }
