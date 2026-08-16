@@ -37,6 +37,7 @@ final class ReceiveModel {
         let blockCount: Int
 
         var isImage: Bool { contentType.hasPrefix("image/") }
+        var isVideo: Bool { contentType.hasPrefix("video/") }
     }
 
     func cameraAuthorized() {
