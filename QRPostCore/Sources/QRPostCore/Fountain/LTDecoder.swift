@@ -117,13 +117,15 @@ public final class LTDecoder {
         }
     }
 
-    // MARK: - 가우스 소거 폴백 (GF(2))
+    // MARK: - 가우스 소거 폴백
 
     /// 미지 블록이 이 수 이하로 남았을 때만 소거를 시도한다 (비용 상한)
     private let eliminationUnknownLimit = 128
+    /// 방정식 수 상한 — 미지수 대비 여유분
+    private let eliminationEquationSlack = 64
 
     /// 순수 필링은 말단에서 차수 1 패킷을 기다리며 오버헤드를 키운다.
-    /// 남은 미지 블록이 적고 방정식(대기 패킷)이 충분하면 GF(2) 연립방정식으로 직접 푼다.
+    /// 남은 미지 블록이 적고 방정식(대기 패킷)이 충분하면 GF2Solver로 직접 푼다.
     private func attemptGaussianElimination() {
         let unknownCount = parameters.blockCount - decodedBlockCount
         guard unknownCount > 0,
@@ -135,55 +137,16 @@ public final class LTDecoder {
         for block in 0..<parameters.blockCount where decodedBlocks[block] == nil {
             unknowns.append(block)
         }
-        var columnOf: [Int: Int] = [:]
-        for (column, block) in unknowns.enumerated() {
-            columnOf[block] = column
-        }
 
-        // 방정식은 차수 낮은 것부터, 개수는 상한을 둔다 (결정적 순서)
-        let words = (unknownCount + 63) / 64
-        let candidates = pendingNeighbors
+        // 방정식은 차수 낮은 것부터, 결정적 순서로
+        let equations = pendingNeighbors
             .sorted { ($0.value.count, $0.key) < ($1.value.count, $1.key) }
-            .prefix(unknownCount + 64)
-        var rows: [(mask: [UInt64], payload: [UInt8])] = []
-        rows.reserveCapacity(candidates.count)
-        for (id, neighbors) in candidates {
-            var mask = [UInt64](repeating: 0, count: words)
-            for block in neighbors {
-                let column = columnOf[block]!
-                mask[column >> 6] |= 1 << UInt64(column & 63)
-            }
-            rows.append((mask, pendingPayloads[id]!))
-        }
+            .prefix(unknownCount + eliminationEquationSlack)
+            .map { GF2Solver.Equation(neighbors: $0.value, payload: pendingPayloads[$0.key]!) }
 
-        // 전방+후방 소거로 RREF까지
-        var pivotRow = 0
-        for column in 0..<unknownCount {
-            let word = column >> 6
-            let bit = UInt64(column & 63)
-            guard let found = (pivotRow..<rows.count).first(where: { rows[$0].mask[word] >> bit & 1 == 1 }) else {
-                continue
-            }
-            rows.swapAt(pivotRow, found)
-            for i in 0..<rows.count where i != pivotRow && rows[i].mask[word] >> bit & 1 == 1 {
-                for w in 0..<words {
-                    rows[i].mask[w] ^= rows[pivotRow].mask[w]
-                }
-                xor(&rows[i].payload, rows[pivotRow].payload)
-            }
-            pivotRow += 1
-            if pivotRow == rows.count { break }
-        }
-
-        // 단일 미지수만 남은 행 = 확정된 블록. 일부만 풀려도 필링 연쇄로 이어진다.
-        for row in rows {
-            guard row.mask.reduce(0, { $0 + $1.nonzeroBitCount }) == 1 else { continue }
-            let word = row.mask.firstIndex(where: { $0 != 0 })!
-            let column = word << 6 + row.mask[word].trailingZeroBitCount
-            let block = unknowns[column]
-            if decodedBlocks[block] == nil {
-                solve(block: block, payload: row.payload)
-            }
+        for solution in GF2Solver.solve(unknowns: unknowns, equations: equations)
+        where decodedBlocks[solution.block] == nil {
+            solve(block: solution.block, payload: solution.payload)
         }
     }
 }

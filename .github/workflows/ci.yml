@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main, release]
+  push:
+    branches: [develop, main]
+
+jobs:
+  core-test:
+    name: 코어 테스트
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: swift test
+        run: swift test --package-path QRPostCore
+
+  app-build:
+    name: 앱 빌드
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: xcodebuild
+        run: >
+          xcodebuild
+          -project QRPost/QRPost.xcodeproj
+          -scheme QRPost
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          build
+
+  report:
+    name: 결과 코멘트
+    if: ${{ github.event_name == 'pull_request' && always() }}
+    needs: [core-test, app-build]
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const results = {
+              '코어 테스트 (swift test)': '${{ needs.core-test.result }}',
+              '앱 빌드 (iphonesimulator)': '${{ needs.app-build.result }}',
+            };
+            const ok = Object.values(results).every(r => r === 'success');
+            const lines = [`## CI 결과: ${ok ? '통과' : '실패'}`, ''];
+            for (const [name, r] of Object.entries(results)) {
+              lines.push(`- ${name}: ${r === 'success' ? '통과' : '실패'}`);
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: lines.join('\n'),
+            });
